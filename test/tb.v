@@ -1,49 +1,87 @@
-`default_nettype none
 `timescale 1ns / 1ps
 
-/* This testbench just instantiates the module and makes some convenient wires
-   that can be driven / tested by the cocotb test.py.
-*/
-module tb ();
+module tb_smart_alu8;
 
-  // Dump the signals to a FST file. You can view it with gtkwave or surfer.
-  initial begin
-    $dumpfile("tb.fst");
-    $dumpvars(0, tb);
-    #1;
-  end
+    reg clk;
+    reg rst;
+    reg en;
+    reg [7:0] A, B;
+    reg [3:0] SEL;
 
-  // Wire up the inputs and outputs:
-  reg clk;
-  reg rst_n;
-  reg ena;
-  reg [7:0] ui_in;
-  reg [7:0] uio_in;
-  wire [7:0] uo_out;
-  wire [7:0] uio_out;
-  wire [7:0] uio_oe;
-`ifdef GL_TEST
-  wire VPWR = 1'b1;
-  wire VGND = 1'b0;
-`endif
+    wire [7:0] Y;
+    wire Carry, Zero, Overflow;
+    wire [2:0] Status;
+    wire Parity;
 
-  // Replace tt_um_example with your module name:
-  tt_um_example user_project (
+    smart_alu8 uut (
+        .clk(clk),
+        .rst(rst),
+        .en(en),
+        .A(A),
+        .B(B),
+        .SEL(SEL),
+        .Y(Y),
+        .Carry(Carry),
+        .Zero(Zero),
+        .Overflow(Overflow),
+        .Status(Status),
+        .Parity(Parity)
+    );
 
-      // Include power ports for the Gate Level test:
-`ifdef GL_TEST
-      .VPWR(VPWR),
-      .VGND(VGND),
-`endif
+    // Clock generation
+    always #5 clk = ~clk;
 
-      .ui_in  (ui_in),    // Dedicated inputs
-      .uo_out (uo_out),   // Dedicated outputs
-      .uio_in (uio_in),   // IOs: Input path
-      .uio_out(uio_out),  // IOs: Output path
-      .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
-      .ena    (ena),      // enable - goes high when design is selected
-      .clk    (clk),      // clock
-      .rst_n  (rst_n)     // not reset
-  );
+    // Task to apply input and print AFTER clock edge
+    task apply;
+        input [7:0] a, b;
+        input [3:0] sel;
+        begin
+            A = a;
+            B = b;
+            SEL = sel;
+            @(posedge clk);  // wait for correct update
+            #1;
+            $display("A=%d B=%d SEL=%b | Y=%d Carry=%b Overflow=%b Zero=%b Status=%b Parity=%b",
+                     A, B, SEL, Y, Carry, Overflow, Zero, Status, Parity);
+        end
+    endtask
+
+    initial begin
+        clk = 0;
+        rst = 1;
+        en = 1;
+
+        A = 0;
+        B = 0;
+        SEL = 0;
+
+        #10 rst = 0;
+
+        $display("------ ARITHMETIC TESTS ------");
+        apply(10, 5, 4'b0000);    // ADD
+        apply(10, 5, 4'b0001);    // SUB
+
+        $display("------ LOGIC TESTS ------");
+        apply(8'b10101010, 8'b11001100, 4'b0101); // AND
+        apply(8'b10101010, 8'b11001100, 4'b0110); // OR
+        apply(8'b10101010, 8'b11001100, 4'b0111); // XOR
+        apply(8'b10101010, 0, 4'b1000);           // NOT
+
+        $display("------ SHIFT TESTS ------");
+        apply(8'b10000001, 0, 4'b1001); // LEFT SHIFT
+        apply(8'b10000001, 0, 4'b1010); // RIGHT SHIFT
+
+        $display("------ OVERFLOW + SATURATION ------");
+        apply(127, 5, 4'b0000);   // POSITIVE OVERFLOW
+        apply(128, 200, 4'b0000); // NEGATIVE OVERFLOW
+
+        $display("------ ZERO TEST ------");
+        apply(5, 5, 4'b0001);     // ZERO
+
+        $display("------ PARITY TEST ------");
+        apply(8'b11111111, 0, 4'b0101);
+
+        $stop;
+    end
 
 endmodule
