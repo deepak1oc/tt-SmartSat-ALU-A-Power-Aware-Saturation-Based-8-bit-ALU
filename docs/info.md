@@ -1,35 +1,62 @@
 How it works
 
-The SmartSat-ALU is an 8-bit synchronous Arithmetic Logic Unit that performs arithmetic, logic, and shift operations based on a 4-bit select signal. The design is divided into three internal units: Arithmetic, Logic, and Shift. A multiplexer selects the final output based on the operation.
+SmartSat-ALU is an 8-bit synchronous Arithmetic Logic Unit designed for compact silicon implementation.
+It supports arithmetic, logic, and shift operations using a simple select-based control scheme.
 
-For arithmetic operations, overflow is detected using signed arithmetic rules. When overflow occurs, saturation logic clamps the output to the maximum (7F) or minimum (80) value instead of wrapping around. The design also generates status flags including Carry, Zero, and Overflow.
+The design is organized into three parallel units:
 
-The output is registered on the clock edge to ensure stable and predictable behavior. Additionally, parity is generated using XOR reduction for basic error detection.
+Arithmetic unit performs ADD, SUB, INC, DEC, and MUL operations
+Logic unit performs AND, OR, XOR, and NOT
+Shift unit performs left and right shifts
 
+All units compute simultaneously, and a multiplexer selects the final result based on the operation.
+
+For arithmetic operations, overflow is detected using signed rules:
+overflow = (A[7] == B[7]) && (result[7] != A[7])
+
+Instead of allowing wrap-around, saturation logic clamps the output:
+
+Positive overflow → 7F
+Negative overflow → 80
+
+The output is registered on the clock edge for stable operation.
+
+Status flags:
+
+Carry → carry/borrow from arithmetic
+Zero → result equals zero
+Overflow → signed overflow detected
+
+Parity:
+
+Generated using XOR reduction: Parity = ^Y
+Used for simple error detection
 How to test
+Apply 8-bit inputs A and B
+Set operation using SEL[3:0]
+Provide clock signal and release reset
+Observe outputs on rising clock edge
 
-Apply 8-bit input values A and B along with a 4-bit select signal (SEL) to choose the operation. The output updates on the rising edge of the clock.
+Operation select (SEL):
 
-Basic operations:
-
-ADD (SEL = 0000)
-SUB (SEL = 0001)
-AND, OR, XOR, NOT
-Shift Left and Shift Right
+0000 = ADD
+0001 = SUB
+0101 = AND
+0110 = OR
+0111 = XOR
+1000 = NOT
+1001 = SHIFT LEFT
+1010 = SHIFT RIGHT
 
 Test important cases:
 
-Normal arithmetic (e.g., 10 + 5)
-Overflow case (e.g., 127 + 5 → saturated to 127)
-Zero condition (e.g., 5 - 5 → Zero flag = 1)
+Normal operation: 10 + 5 → 15
+Overflow: 127 + 5 → 127 (saturated)
+Negative overflow: -128 + (-56) → -128
+Zero: 5 - 5 → 0 (Zero flag = 1)
 
-Observe outputs:
+Expected output:
 
-Y → result
-Carry → carry/borrow
-Overflow → overflow detection
-Zero → result is zero
-Parity → error detection
-External hardware
-
-No external hardware is required. The design is fully digital and can be tested using simulation tools such as ModelSim or Vivado.
+Y → computed result
+Carry, Zero, Overflow → status flags
+Parity → XOR of output bits
